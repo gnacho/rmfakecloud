@@ -43,19 +43,13 @@ func MergeV6AnnotationsWithPDF(backgroundPDF, inkPDF []byte, inkToPage map[int]i
 			extraPages = append(extraPages, inkPage)
 			continue
 		}
-		wm, err := api.PDFWatermarkForReadSeeker(inkRS, inkPage, "pos: c", true, false, types.POINTS)
+		wm, err := inkWatermark(inkRS, inkPage, math.Min(
+			bgDims[dest-1].Width/inkDims[inkPage-1].Width,
+			bgDims[dest-1].Height/inkDims[inkPage-1].Height,
+		))
 		if err != nil {
 			return fmt.Errorf("watermark page %d: %w", inkPage, err)
 		}
-		// uniform fit: scale the ink page so it fits inside the
-		// background page, aspect ratio preserved, centered
-		f := math.Min(
-			bgDims[dest-1].Width/inkDims[inkPage-1].Width,
-			bgDims[dest-1].Height/inkDims[inkPage-1].Height,
-		)
-		wm.Scale = f
-		wm.ScaleAbs = true
-		wm.Pos = types.Center
 		wmMap[dest] = wm
 	}
 
@@ -83,4 +77,24 @@ func MergeV6AnnotationsWithPDF(backgroundPDF, inkPDF []byte, inkToPage map[int]i
 
 	_, err = io.Copy(output, bytes.NewReader(result))
 	return err
+}
+
+// inkWatermark builds the stamp for a single ink page. The ink is
+// scaled by scale (uniform fit, aspect ratio kept) and centred on the
+// destination page.
+func inkWatermark(inkRS io.ReadSeeker, inkPage int, scale float64) (*model.Watermark, error) {
+	wm, err := api.PDFWatermarkForReadSeeker(inkRS, inkPage, "pos: c", true, false, types.POINTS)
+	if err != nil {
+		return nil, err
+	}
+	// pdfcpu's default watermark config paints along the page diagonal
+	// (DiagonalLLToUR): keeping it would rotate the ink by the page
+	// diagonal angle, so the handwriting would come out skewed. The
+	// ink has to keep its original orientation.
+	wm.Diagonal = model.NoDiagonal
+	wm.Rotation = 0
+	wm.Scale = scale
+	wm.ScaleAbs = true
+	wm.Pos = types.Center
+	return wm, nil
 }
