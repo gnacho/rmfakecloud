@@ -12,8 +12,9 @@ See the [project documentation](https://ddvk.github.io/rmfakecloud/) for setup a
 | reMarkable 2         | ✅           |
 | reMarkable Paper Pro | ✅           |
 | reMarkable Paper Pro Move | ✅           |
+| reMarkable Paper Pure| ✅           |
 
-The current release of rmfakecloud supports file synchronization up to **reMarkable software 3.26.0**. Newer releases have not been tested yet.
+The current release of rmfakecloud supports file synchronization up to **reMarkable software 3.27.1**. Newer releases have not been tested yet.
 
 See the [documentation](https://ddvk.github.io/rmfakecloud/remarkable/setup/) for how to setup your device to use rmfakecloud.
 
@@ -27,7 +28,7 @@ See the [documentation](https://ddvk.github.io/rmfakecloud/remarkable/setup/) fo
 | [Send document by email](https://ddvk.github.io/rmfakecloud/install/configuration/#email-settings) | ✅ |  |
 | [Handwriting recognition](https://ddvk.github.io/rmfakecloud/install/configuration/#handwriting-recognition) | ✅ |  |
 | Handwriting search | ❌ |  |
-| [Screen sharing](https://ddvk.github.io/rmfakecloud/install/configuration/#screen-sharing) | ✅ | Requires TLS and special proxying |
+| [Screen sharing](https://ddvk.github.io/rmfakecloud/install/configuration/#screen-sharing) | ✅ |  |
 | [Storage integrations](https://ddvk.github.io/rmfakecloud/usage/integrations/) | ✅ |  |
 | Integration with Dropbox | 🟡 | [WIP](https://github.com/ddvk/rmfakecloud/blob/master/internal/integrations/dropbox.go) |
 | Integration with Google Drive | 🟡 | [WIP](https://github.com/ddvk/rmfakecloud/pull/241) |
@@ -36,6 +37,7 @@ See the [documentation](https://ddvk.github.io/rmfakecloud/remarkable/setup/) fo
 | Integration with FTP | ✅ |  |
 | Messaging integrations | ✅ |  |
 | [Messaging integration through webhook](https://ddvk.github.io/rmfakecloud/usage/integrations/#messaging-webhook) | ✅ |  |
+| Calendar integration | ✅ | ICS currently supported
 | Messaging integration to Slack | 🟡 | Not directly, use a webhook with zapier/make/n8n |
 | Archive document to cloud | 🟡 | It works but the information is not saved |
 | [Passcode (PIN) reset](https://ddvk.github.io/rmfakecloud/usage/passcode-reset/) | ✅ | reMarkable 1 / reMarkable 2 only |

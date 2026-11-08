@@ -72,6 +72,7 @@ const (
 	envHwrHmac = "RMAPI_HWR_HMAC"
 	// envHwrLangOverride override the language specified in myScript requests
 	envHwrLangOverride = "RMAPI_HWR_LANG_OVERRIDE"
+	envHwrHost         = "RMAPI_HWR_HOST"
 	// EnvLogFile log file to use
 	EnvLogFile     = "RM_LOGFILE"
 	envHTTPSCookie = "RM_HTTPS_COOKIE"
@@ -99,6 +100,7 @@ type Config struct {
 	HWRApplicationKey string
 	HWRHmac           string
 	HWRLangOverride   string
+	HWRHost           string
 	HTTPSCookie       bool
 	TrustProxy        bool
 	MQTTPort          string
@@ -249,6 +251,12 @@ func FromEnv() *Config {
 			iceServers = nil
 		}
 	}
+	if len(iceServers) == 0 {
+		iceServers = []interface{}{
+			map[string]string{"url": "stun:stun.l.google.com:19302", "username": "", "credential": ""},
+		}
+	}
+	iceServers = normalizeICEServers(iceServers)
 
 	hashSchemaVersion := os.Getenv(envHashSchemaVersion)
 	if hashSchemaVersion == "" {
@@ -270,6 +278,7 @@ func FromEnv() *Config {
 		HWRApplicationKey: os.Getenv(envHwrApplicationKey),
 		HWRHmac:           os.Getenv(envHwrHmac),
 		HWRLangOverride:   os.Getenv(envHwrLangOverride),
+		HWRHost:           os.Getenv(envHwrHost),
 		HTTPSCookie:       httpsCookie,
 		TrustProxy:        trustProxy,
 		MQTTPort:          mqttPort,
@@ -277,6 +286,74 @@ func FromEnv() *Config {
 		HashSchemaVersion: hashSchemaVersion,
 	}
 	return &cfg
+}
+
+// normalizeICEServers expands "urls" arrays into singular "url" entries; xochitl rejects anything else
+func normalizeICEServers(servers []interface{}) []interface{} {
+	normalized := make([]interface{}, 0, len(servers))
+	for _, s := range servers {
+		m, ok := toStringMap(s)
+		if !ok {
+			normalized = append(normalized, s)
+			continue
+		}
+		_, hasURL := m["url"]
+		_, hasURLs := m["urls"]
+		urls := collectICEURLs(m)
+		if len(urls) == 0 {
+			if !hasURL && !hasURLs {
+				normalized = append(normalized, s)
+			}
+			continue
+		}
+		for _, u := range urls {
+			entry := map[string]interface{}{"url": u}
+			for k, v := range m {
+				if k == "url" || k == "urls" {
+					continue
+				}
+				entry[k] = v
+			}
+			normalized = append(normalized, entry)
+		}
+	}
+	return normalized
+}
+
+func toStringMap(v interface{}) (map[string]interface{}, bool) {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		return t, true
+	case map[string]string:
+		m := make(map[string]interface{}, len(t))
+		for k, val := range t {
+			m[k] = val
+		}
+		return m, true
+	default:
+		return nil, false
+	}
+}
+
+func collectICEURLs(m map[string]interface{}) []string {
+	var urls []string
+	add := func(v interface{}) {
+		switch t := v.(type) {
+		case string:
+			if t != "" {
+				urls = append(urls, t)
+			}
+		case []interface{}:
+			for _, item := range t {
+				if str, ok := item.(string); ok && str != "" {
+					urls = append(urls, str)
+				}
+			}
+		}
+	}
+	add(m["url"])
+	add(m["urls"])
+	return urls
 }
 
 // EnvVars env vars usage
@@ -320,6 +397,7 @@ myScript hwr (needs a developer account):
 	%s
 	%s
 	%s      override the language specified in myScript requests
+	%s      custom myScript host URL (default: https://cloud.myscript.com)
 
 V6 file format support:
 	Native rmc-go library with Cairo renderer is always enabled.
@@ -355,5 +433,6 @@ V6 file format support:
 		envHwrApplicationKey,
 		envHwrHmac,
 		envHwrLangOverride,
+		envHwrHost,
 	)
 }

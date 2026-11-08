@@ -82,10 +82,22 @@ func (app *App) registerRoutes(router *gin.Engine) {
 	router.POST("/report/v1", app.nullReport)
 	router.POST("/v2/events", app.nullReport)
 
+	if app.mqttBroker != nil {
+		router.GET("/mqtt", app.handleMQTTWebSocket)
+	}
+
 	//routes needing api authentitcation
 	authRoutes := router.Group("/")
 	authRoutes.Use(app.authMiddleware())
 	{
+
+		authRoutes.POST("/screenshare/v1/rooms", app.screenshareCreateRoom)
+		authRoutes.POST("/screenshare/v1/rooms/join-active", app.screenshareJoinActive)
+		authRoutes.GET("/screenshare/v1/rooms/:roomId", app.screenshareGetRoom)
+		authRoutes.DELETE("/screenshare/v1/rooms/:roomId", app.screenshareDeleteRoom)
+		authRoutes.POST("/screenshare/v1/rooms/:roomId/keepalive", app.screenshareKeepalive)
+		authRoutes.POST("/screenshare/v1/rooms/:roomId/messages/broadcast", app.screenshareBroadcast)
+		authRoutes.POST("/screenshare/v1/rooms/:roomId/messages/direct", app.screenshareDirect)
 
 		// document notifications
 		authRoutes.GET("/notifications/ws/json/1", app.connectWebSocket)
@@ -131,6 +143,7 @@ func (app *App) registerRoutes(router *gin.Engine) {
 		authRoutes.GET("/integrations/v2/storage/:"+integrationKey+"/files/:"+fileKey+"/metadata", app.integrationsGetMetadata)
 		authRoutes.POST("/integrations/v2/storage/:"+integrationKey+"/files/:"+folderKey, app.integrationsUpload)
 		authRoutes.POST("/integrations/v2/messaging/:"+integrationKey+"/message", app.integrationsSendMessage)
+		authRoutes.GET("/integrations/v2/calendars/:"+integrationKey+"/events", app.integrationsCalendarEvents)
 
 		// sync15
 		authRoutes.POST("/api/v1/signed-urls/downloads", app.blobStorageDownload)

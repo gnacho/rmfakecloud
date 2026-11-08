@@ -2,6 +2,7 @@ package hub
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"strconv"
 	"time"
 
@@ -17,6 +18,7 @@ type notification struct {
 	msg  *messages.WsMessage
 	uid  string
 	from string
+	to   string // only this device, when set
 }
 
 // Hub ws notificaiton hub
@@ -94,7 +96,6 @@ func (h *Hub) Notify(uid, deviceID string, doc DocumentNotification, eventType m
 		msg:  &msg,
 	}
 }
-// NotifyPasscodeReset pushes a PasscodeResetApproved event to every client of uid.
 func (h *Hub) NotifyPasscodeReset(uid, deviceID, deviceName, requestID string) {
 	msgid := strconv.Itoa(int(time.Now().UnixNano()))
 	msg := messages.WsMessage{
@@ -117,6 +118,47 @@ func (h *Hub) NotifyPasscodeReset(uid, deviceID, deviceName, requestID string) {
 	}
 }
 
+func (h *Hub) NotifyScreenshare(uid, fromClientID string, payload interface{}) {
+	h.NotifyScreenshareTo(uid, fromClientID, "", payload)
+}
+
+// NotifyScreenshareTo sends a screenshare signaling message to one device of the user,
+// or to all of them except the sender when toClientID is empty
+func (h *Hub) NotifyScreenshareTo(uid, fromClientID, toClientID string, payload interface{}) {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("hub: failed to marshal screenshare payload: %v", err)
+		return
+	}
+	encoded := base64.StdEncoding.EncodeToString(payloadJSON)
+
+	messageID := uuid.New().String()
+	timeStamp := time.Now().UTC().Format(time.RFC3339Nano)
+
+	msg := messages.WsMessage{
+		Message: messages.NotificationMessage{
+			MessageID:  messageID,
+			MessageID2: messageID,
+			MessageID3: messageID,
+			Attributes: messages.Attributes{
+				Auth0UserID:    uid,
+				Event:          messages.ScreenshareMessageEvent,
+				SourceDeviceID: fromClientID,
+			},
+			PublishTime:  timeStamp,
+			PublishTime2: timeStamp,
+			Data:         encoded,
+		},
+	}
+
+	h.notifications <- notification{
+		uid:  uid,
+		from: fromClientID,
+		to:   toClientID,
+		msg:  &msg,
+	}
+}
+
 func (h *Hub) send(n notification) {
 	uid := n.uid
 	msg := n.msg
@@ -124,7 +166,7 @@ func (h *Hub) send(n notification) {
 
 	if clients, ok := h.userClients[uid]; ok {
 		for c := range clients {
-			if c.deviceID == n.from {
+			if c.deviceID == n.from || (n.to != "" && c.deviceID != n.to) {
 				continue
 				// log.Warn("sending to same device: ", c.deviceID)
 			}
@@ -245,11 +287,13 @@ outer:
 
 // ConnectWs upgrade the connection to websocket
 func (h *Hub) ConnectWs(uid, deviceID string, connection *websocket.Conn) {
+	// buffered: send() drops a notification when the writer is busy, which lost messages in a burst
+	// (a screenshare offer followed by its ICE candidates)
 	client := &wsClient{
 		uid:           uid,
 		deviceID:      deviceID,
 		hub:           h,
-		notifications: make(chan *messages.WsMessage),
+		notifications: make(chan *messages.WsMessage, 64),
 		done:          make(chan struct{}),
 	}
 	h.additions <- client
